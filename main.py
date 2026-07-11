@@ -1,38 +1,43 @@
-# To run and test the code you need to update 4 places:
-# 1. Change MY_EMAIL/MY_PASSWORD to your own details.
-# 2. Go to your email provider and make it allow less secure apps.
-# 3. Update the SMTP ADDRESS to match your email provider.
-# 4. Update birthdays.csv to contain today's month and day.
-# See the solution video in the 100 Days of Python Course for explainations.
-
-
-from datetime import datetime
-import pandas
-import random
-import smtplib
+import requests
+from twilio.rest import Client
 import os
+from dotenv import load_dotenv
 
-# import os and use it to get the Github repository secrets
-MY_EMAIL = os.environ.get("MY_EMAIL")
-MY_PASSWORD = os.environ.get("MY_PASSWORD")
+# This function looks for the .env file and loads the variables
+load_dotenv()
 
-today = datetime.now()
-today_tuple = (today.month, today.day)
+# Now you can safely access them
+sid = os.getenv('TWILIO_ACCOUNT_SID')
+token = os.getenv('TWILIO_AUTH_TOKEN')
 
-data = pandas.read_csv("birthdays.csv")
-birthdays_dict = {(data_row["month"], data_row["day"])                  : data_row for (index, data_row) in data.iterrows()}
-if today_tuple in birthdays_dict:
-    birthday_person = birthdays_dict[today_tuple]
-    file_path = f"letter_templates/letter_{random.randint(1, 3)}.txt"
-    with open(file_path) as letter_file:
-        contents = letter_file.read()
-        contents = contents.replace("[NAME]", birthday_person["name"])
+TWILIO_PHONE_NUMBER='+16293171352'
 
-    with smtplib.SMTP("YOUR EMAIL PROVIDER SMTP SERVER ADDRESS") as connection:
-        connection.starttls()
-        connection.login(MY_EMAIL, MY_PASSWORD)
-        connection.sendmail(
-            from_addr=MY_EMAIL,
-            to_addrs=birthday_person["email"],
-            msg=f"Subject:Happy Birthday!\n\n{contents}"
-        )
+
+
+
+# 2. Meteoblue API
+METEOBLUE_URL = "https://my.meteoblue.com/packages/basic-1h_basic-day?apikey=Pv1z2bAu3t5RE0i8&lat=30.0626&lon=31.2497&asl=23&format=json"
+response = requests.get(METEOBLUE_URL).json()
+
+times = response['data_1h']['time']
+precip = response['data_1h']['precipitation']
+
+# 3. Logic to check for rain in the next 12 hours
+rain_found = False
+for i in range(12):
+    if precip[i] > 0:
+        print(f"Rain predicted at {times[i]}: {precip[i]} mm")
+        rain_found = True
+
+# 4. Send only ONE alert if rain is found at any point in the 12 hours
+if rain_found:
+    client = Client(sid , token)
+    message = client.messages\
+    .create(
+        body="Rain is expected in Cairo within the next 12 hours. Prepare accordingly!",
+        from_=TWILIO_PHONE_NUMBER,
+        to="01006100111"
+    )
+    print(message.status)
+else:
+    print("No rain predicted for the next 12 hours.")
